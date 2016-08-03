@@ -82,7 +82,7 @@ def get_data(image_net_directory, batch_size, nb_frame, type, synset_wnet2id, bu
 
         ind = 0
         list_file = sorted(os.listdir(path_x + 'ILSVRC2015_' + type + '_' + snippet_id + '/'))
-        if len(list_file) > nb_frame:
+        if len(list_file) >= nb_frame:
             ind = random.randrange(0, len(list_file) - nb_frame)
         indexes.append(ind)
 
@@ -94,58 +94,6 @@ def get_data(image_net_directory, batch_size, nb_frame, type, synset_wnet2id, bu
         count_dir += 1
 
     return X, Y, image_paths, label_paths, indexes
-
-# def get_one_random_frame_path(image_net_directory, type, bucket_id = None):
-#     if type == 'train':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/ILSVRC2015_VID_' + type + '_' + bucket_id + '/'
-#         path_y = image_net_directory + 'Annotations/VID/' + type + '/ILSVRC2015_VID_' + type + '_' + bucket_id + '/'
-#
-#     elif type == 'val':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/'
-#         path_y = image_net_directory + 'Annotations/VID/' + type + '/'
-#
-#     elif type == 'test':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/'
-#         path_y = None
-#
-#     random_dir = random.sample(os.listdir(path_x), 1)
-#
-#     regexp = "ILSVRC2015_"+ type +"_([0-9]*)"
-#     snippet_id = re.match(regexp,random_dir[0]).group(1)
-#
-#     random_frame = random.sample(os.listdir(path_x + 'ILSVRC2015_' + type + '_' + snippet_id + '/'), 1)
-#     regexp = "([0-9]*).JPEG"
-#     frame_id = re.match(regexp,random_frame[0]).group(1)
-#
-#     path_x = path_x + 'ILSVRC2015_' + type + '_' + snippet_id + '/' + frame_id + '.JPEG'
-#     if type != 'test':
-#         path_y = path_y + 'ILSVRC2015_' + type + '_' + snippet_id + '/' + frame_id + '.xml'
-#
-#     return path_x, path_y
-#
-# def get_one_random_video_path(image_net_directory, type, bucket_id = None):
-#     if type == 'train':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/ILSVRC2015_VID_' + type + '_' + bucket_id + '/'
-#         path_y = image_net_directory + 'Annotations/VID/' + type + '/ILSVRC2015_VID_' + type + '_' + bucket_id + '/'
-#
-#     elif type == 'val':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/'
-#         path_y = image_net_directory + 'Annotations/VID/' + type + '/'
-#
-#     elif type == 'test':
-#         path_x = image_net_directory + 'Data/VID/' + type + '/'
-#         path_y = None
-#
-#     random_dir = random.sample(os.listdir(path_x), 1)
-#
-#     regexp = "ILSVRC2015_"+ type +"_([0-9]*)"
-#     snippet_id = re.match(regexp,random_dir[0]).group(1)
-#
-#     path_x = path_x + 'ILSVRC2015_' + type + '_' + snippet_id + '/'
-#     if type != 'test':
-#         path_y = path_y + 'ILSVRC2015_' + type + '_' + snippet_id + '/'
-#
-#     return path_x, path_y
 
 if __name__ == "__main__":
     pass

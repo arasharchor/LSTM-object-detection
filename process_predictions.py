@@ -6,7 +6,8 @@ from matplotlib import pyplot as plt
 def process_predictions(y_pred, y_true, image_path, label_path, index, nb_frame, synset_id2name, synset_wnet2name, show = False):
     predictions = np.reshape(y_pred, (nb_frame, S, S, 4 + num_categories + 1))
     truth = np.reshape(y_true, (nb_frame, S, S, 4 + num_categories + 1))
-    treshold = 0.2
+    thresh = threshold
+
     for f in range(nb_frame):
         boxes = []
         path = label_path + str(index + f).zfill(6) + '.xml'

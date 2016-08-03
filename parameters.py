@@ -6,3 +6,4 @@ synset_path = '/home/romain/work/LSTM-object-detection/map_vid.txt'
 examples_path = '/home/romain/work/LSTM-object-detection/examples/'
 S = 4
 num_categories = 30
+threshold = 0.2
