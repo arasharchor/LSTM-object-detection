@@ -1,4 +1,4 @@
-import re, numpy as np
+import re, math, numpy as np
 from parameters import *
 
 def process_objects(width, height, objects, synset_wnet2id):
@@ -22,7 +22,7 @@ def process_objects(width, height, objects, synset_wnet2id):
         xbox = x_center / x_unit
         ybox = y_center / y_unit
 
-        if(boxes[xbox][ybox] == False):
+        if(boxes[xbox][ybox] == False): # Just one object per cell
             idbox = int(synset_wnet2id[name]) - 1
             y[xbox, ybox, 4 + idbox] = 1
             y[xbox, ybox, 4 + num_categories] = 1
@@ -35,25 +35,12 @@ def process_objects(width, height, objects, synset_wnet2id):
 
             y[xbox, ybox, 0] = xcoord
             y[xbox, ybox, 1] = ycoord
-            y[xbox, ybox, 2] = w
-            y[xbox, ybox, 3] = h
+            y[xbox, ybox, 2] = math.sqrt(w)
+            y[xbox, ybox, 3] = math.sqrt(h)
 
             boxes[xbox][ybox] = True
 
     return y
-
-# def process_objects(width, height, objects, synset_wnet2id):
-#     y = np.zeros((num_categories,))
-#     already_filled = False
-
-#     for obj in objects:
-#         trackid, name, xmax, xmin, ymax, ymin, occluded, generated = obj
-#         idbox = int(synset_wnet2id[name]) - 1
-#         if already_filled == False:
-#             y[idbox,] = 1
-#             # already_filled = True
-
-#     return y
 
 if __name__ == "__main__":
     pass

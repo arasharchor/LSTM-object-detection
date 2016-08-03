@@ -1,6 +1,5 @@
-import os, h5py
 from keras.models import Sequential
-from keras.layers import *
+from keras.layers import LSTM, Dense, Dropout, TimeDistributed
 
 def LSTMnet(nb_lstm_layer, nb_frame, input_size, output_size, hidden_size, time_distributed = False, weights_path = None):
     first_layer_return_sequences = False
