@@ -3,6 +3,7 @@ from parameters import *
 from ILSVRC_parsing import parse_ILSVRCXML
 from matplotlib import pyplot as plt
 from image_preprocessing import shift
+from nms import non_max_suppression
 
 def process_predictions(y_pred, y_true, image_path, label_path, index, nb_frame, synset_id2name, show = False):
     predictions = np.reshape(y_pred, (nb_frame, S, S, 4 + num_categories + 1))
@@ -11,6 +12,7 @@ def process_predictions(y_pred, y_true, image_path, label_path, index, nb_frame,
 
     for f in range(nb_frame):
         boxes = []
+        boxes4nms = []
         path = label_path + str(index + f).zfill(6) + '.xml'
         folder, filename, database, width, height, objects = parse_ILSVRCXML(path)
 
@@ -21,6 +23,11 @@ def process_predictions(y_pred, y_true, image_path, label_path, index, nb_frame,
             row = i / S
             col = i % S
 
+            # x = (min(max(predictions[f, row, col, 0], 0), 1) + row) * x_unit
+            # y = (min(max(predictions[f, row, col, 1], 0), 1) + col) * y_unit
+            # w = min(max(pow(predictions[f, row, col, 2], 2), 0), 1) * width
+            # h = min(max(pow(predictions[f, row, col, 3], 2), 0), 1) * height
+
             x = (predictions[f, row, col, 0] + row) * x_unit
             y = (predictions[f, row, col, 1] + col) * y_unit
             w = pow(predictions[f, row, col, 2], 2) * width
@@ -28,21 +35,24 @@ def process_predictions(y_pred, y_true, image_path, label_path, index, nb_frame,
 
             x_true = (truth[f, row, col, 0] + row) * x_unit
             y_true = (truth[f, row, col, 1] + col) * y_unit
-            
+
             w_true = pow(truth[f, row, col, 2], 2) * width
             h_true = pow(truth[f, row, col, 3], 2) * height
 
-            scale = predictions[f, row, col, 4 + num_categories]
-            
+            scale = min(max(predictions[f, row, col, 4 + num_categories], 0), 1)
+
             top = np.argmax(predictions[f, row, col, 4 : (4 + num_categories)])
             top_true = np.argmax(truth[f, row, col, 4 : (4 + num_categories)])
-            
+
             if truth[f, row, col, 4 + num_categories] == .5:
                 print int(x),int(y),int(w),int(h), top
                 print predictions[f, row, col, 4 : (4 + num_categories)]
                 print x_true,y_true, w_true, h_true, top_true
 
-            boxes.append([x,y,w,h,top,x_true,y_true,w_true,h_true,top_true, truth[f, row, col, 4 + num_categories]])
+            boxes.append([x,y,w,h,scale,top,x_true,y_true,w_true,h_true,top_true, truth[f, row, col, 4 + num_categories]])
+            # boxes4nms.append([min(max(int(x - w/2), 0), width), min(max(int(y - h/2), 0), height),
+            #     min(max(int(x + w/2), 0), width), min(max(int(y + h/2), 0), height)])
+        # non_max_suppression(boxes4nms, thresh).tolist()
         if show:
             show_predictions(image_path + str(index + f).zfill(6) + '.JPEG', width, height, objects, boxes, f, synset_id2name)
 
@@ -58,8 +68,8 @@ def show_predictions(image_path,width, height, objects, boxes, frame_id, synset_
         cv2.line(im, (0, s*y_unit), (width, s*y_unit),  color = (0,0,0), thickness = 2)
 
     # Drawing the predicted boxes
-    for x,y,w,h,top,x_true,y_true,w_true,h_true,top_true, objectness in boxes:
-        cv2.rectangle(im, (int(x), int(y)) , (int(x), int(y)), color = (255,0,0), thickness = 5)
+    for x,y,w,h,scale,top,x_true,y_true,w_true,h_true,top_true, objectness in boxes:
+        cv2.rectangle(im, (int(x), int(y)) , (int(x), int(y)), color = (255,0,0), thickness = 8)
 
         xmin = min(max(int(x - w/2), 0), width)
         xmax = min(max(int(x + w/2), 0), width)
@@ -67,12 +77,13 @@ def show_predictions(image_path,width, height, objects, boxes, frame_id, synset_
         ymax = min(max(int(y + h/2), 0), height)
 
         #cv2.rectangle(im, (xmin,ymin), (xmax, ymin+30), color = (255,255,255), thickness=-1)
-        cv2.rectangle(im, (xmin, ymin) , (xmax, ymax), color = (0,0,255), thickness = 3)
+        if scale != 0:
+            cv2.rectangle(im, (xmin, ymin) , (xmax, ymax), color = (0,0,255), thickness = int(10*scale))
         #font = cv2.FONT_HERSHEY_SIMPLEX
         #cv2.putText(im, synset_id2name[str(top+1)], (xmin, ymin+30), font, 1, (0,0,0))
 
     # Drawing the ground truth boxes
-    #for trackid, name, xmax, xmin, ymax, ymin, occluded, generated in objects:    
+    #for trackid, name, xmax, xmin, ymax, ymin, occluded, generated in objects:
         if objectness == 1:
             xmin = min(max(int(x_true - w_true/2), 0), width)
             xmax = min(max(int(x_true + w_true/2), 0), width)

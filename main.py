@@ -35,16 +35,16 @@ print 'Number of categories :', num_categories
 print 'Side :', S
 
 # LSTM parameters
-nb_lstm_layer = 3
+nb_lstm_layer = 1
 input_size = 512*7*7
-hidden_size = 256
+hidden_size = [2048]
 time_distributed = True
 nb_frame = 16
-dropout = 0.2
-batchnorm = False
+dropout = 0
+batchnorm = True
 
 # Fitting parameters
-batch_size = 16
+batch_size = 1
 validation_batch_size = 0
 buckets_id = ['0000', '0001', '0002', '0003']
 nb_samples = batch_size * 100
@@ -54,6 +54,7 @@ data_augmentation = True
 print 'Number of frames per videos', nb_frame
 print 'Batch size',batch_size
 print 'Data augmentation', data_augmentation
+print 'Batch normalization', batchnorm
 
 #####################################
 # Creating the custom loss function #
@@ -91,7 +92,7 @@ def custom_loss(y_true, y_pred):
     #     loss = loss + K.sum(loss_probs + lambda_coord * loss_coords + lambda_conf * loss_conf, axis = 1)
     #
     # loss = K.sum(loss)
-    
+
     # Loss without a for loop, much more efficient
     y1 = K.reshape(y_pred, (y_pred.shape[0], nb_frame, S, S, nb_features))
     y2 = K.reshape(y_true, (y_true.shape[0], nb_frame, S, S, nb_features))
@@ -108,7 +109,7 @@ def custom_loss(y_true, y_pred):
     #loss_probs = K.sum(K.square(y1_probs - y2_probs),axis=4) * y2[:,:,:,:,(nb_features - 1)]
 
     # SSE weighted by lambda_coord, increasing localization loss
-    loss_coords = K.sum(K.square(y1_coords - y2_coords),axis=4)
+    loss_coords = K.sum(K.square(y1_coords - y2_coords),axis=4) * (1 - noobj)
     # SSE weighted by lambda_noobj if no object is present
     lambda_conf = lambda_noobj * noobj + (1-noobj)
     loss_conf = K.square(y1[:,:,:,:,(nb_features - 1)] - y2[:,:,:,:,(nb_features - 1)])
@@ -130,12 +131,12 @@ vgg16_network.compile(optimizer=vgg16_optimizer, loss='categorical_crossentropy'
 # Loading the LSTM network #
 ############################
 
-w_path = lstm_weights_directory + 'checkpoint-loc-052.hdf5'
-#w_path = None
+w_path = None
+# w_path = lstm_weights_directory + 'checkpoint-loc-bn.hdf5'
 
-lstm_network = LSTMnet(nb_lstm_layer, nb_frame, input_size, (4 + num_categories + 1) * S * S, hidden_size, 
+lstm_network = LSTMnet(nb_lstm_layer, nb_frame, input_size, (4 + num_categories + 1) * S * S, hidden_size,
     time_distributed, w_path, dropout, batchnorm)
-lstm_optimizer = RMSprop(lr=0.001, rho=0.9, epsilon=1e-08)
+lstm_optimizer = RMSprop(lr=0.0001, rho=0.9, epsilon=1e-08)
 lstm_network.compile(loss=custom_loss, optimizer=lstm_optimizer)
 
 ##############################
@@ -145,7 +146,8 @@ lstm_network.compile(loss=custom_loss, optimizer=lstm_optimizer)
 def batchGenerator():
     b_id = 0
     while 1:
-        (X_train, y_train, _, _, _) = get_data(image_net_directory, batch_size, nb_frame, 'train', synset_wnet2id, bucket_id = buckets_id[b_id], data_augmentation = data_augmentation)
+        (X_train, y_train, _, _, _) = get_data(image_net_directory, batch_size, nb_frame, 'train', synset_wnet2id,
+            bucket_id = buckets_id[b_id], data_augmentation = data_augmentation)
         X_train = np.reshape(X_train, (-1, 3, 224, 224))
         X_train = vgg16_network.predict(X_train)
         X_train = np.reshape(X_train, (batch_size, nb_frame, 512 * 7 * 7))
@@ -182,14 +184,14 @@ print 'Validation batch generator loaded'
 
 def scheduler(epoch):
     if epoch >= 120:
-        return float(0.0001)
-    elif epoch >= 50:
-        return float(0.001)
+        return float(0.000001)
+    elif epoch >= 60:
+        return float(0.00001)
     elif epoch >= 20:
-        return float(0.01)
+        return float(0.0001)
     else:
-        return float(0.001 * (1 + epoch*0.5))
-        #return float(0.01)
+        #return float(0.001 * (1 + epoch*0.5))
+        return float(0.001)
 
 class LearningRatePrinter(Callback):
     def init(self):
@@ -198,38 +200,56 @@ class LearningRatePrinter(Callback):
     def on_epoch_begin(self, epoch, logs={}):
         print 'lr:', self.model.optimizer.lr.get_value()
 
+class HistoryCheckpoint(Callback):
+    def on_train_begin(self, logs={}):
+        self.epoch = 1
+        f = open(lstm_weights_directory + 'checkpoint-history.txt', 'w')
+        f.write('BatchSize\t'+batch_size+'\tDropout\t'+dropout+'\n')
+        f.write('Epoch\tLoss\tlr\n')
+        f.close()
+
+    def on_epoch_end(self, batch, logs={}):
+        f = open(lstm_weights_directory + 'checkpoint-history.txt', 'a')
+        f.write(str(self.epoch) +'\t'+ str(logs.get('loss')) +'\t' + str(self.model.optimizer.lr.get_value()) +'\n')
+        f.close()
+        self.epoch += 1
+
 lr_printer = LearningRatePrinter()
 
 lr_scheduler = LearningRateScheduler(scheduler)
 
-checkpoint = ModelCheckpoint(filepath=lstm_weights_directory + 'checkpoint-loc-{epoch:03d}.hdf5', save_weights_only = True)
+hist_checkpoint = HistoryCheckpoint()
 
-callbacks = [checkpoint, lr_scheduler, lr_printer]
+checkpoint = ModelCheckpoint(filepath=lstm_weights_directory + 'checkpoint-loc-bn.hdf5')#, save_weights_only = True)
+
+callbacks = [checkpoint, lr_printer, hist_checkpoint]
 
 #####################
 # Fitting the model #
 #####################
 
-train = False
+train,test = False, True
+
 if train:
     print 'Initializing the model...'
     lstm_network.fit_generator(batchGenerator, samples_per_epoch = nb_samples, nb_epoch = nb_epoch,
-        verbose = 1, max_q_size = 10, callbacks = callbacks)
+        verbose = 1, callbacks = callbacks)
 
 ###########################################
 # Testing the model and show some results #
 ###########################################
 
-test = True
 if test:
-    (X_train, y_train, image_paths, label_paths, indexes) = get_data(image_net_directory, 1, nb_frame, 'val', synset_wnet2id, bucket_id = '0000', verbose = False)
-    print 'Processing video', image_paths[0], 'from frame', indexes[0]
-    X_train = np.reshape(X_train, (-1, 3, 224, 224))
-    X_train = vgg16_network.predict(X_train)
-    X_train = np.reshape(X_train, (1, nb_frame, 512 * 7 * 7))
-    y_pred = lstm_network.predict(X_train)
-    y_train = np.reshape(y_train, (1, nb_frame, -1))
+    for i in range(5):
+        (X_train, y_train, image_paths, label_paths, indexes) = get_data(image_net_directory, 1, nb_frame, 'val', synset_wnet2id,
+            bucket_id = '0000', verbose = False, data_augmentation = False)
+        print 'Processing video', image_paths[0], 'from frame', indexes[0]
+        X_train = np.reshape(X_train, (-1, 3, 224, 224))
+        X_train = vgg16_network.predict(X_train)
+        X_train = np.reshape(X_train, (1, nb_frame, 512 * 7 * 7))
+        y_pred = lstm_network.predict(X_train)
+        y_train = np.reshape(y_train, (1, nb_frame, -1))
 
-    process_predictions(y_pred, y_train, image_paths[0], label_paths[0], indexes[0], nb_frame, synset_id2name, show = True)
-    print 'Computing loss...'
-    print 'Loss',custom_loss(y_train, y_pred).eval()
+        process_predictions(y_pred, y_train, image_paths[0], label_paths[0], indexes[0], nb_frame, synset_id2name, show = True)
+        print 'Computing loss...'
+        print 'Loss',custom_loss(y_train, y_pred).eval()

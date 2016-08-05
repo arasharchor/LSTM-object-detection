@@ -76,15 +76,15 @@ def get_data(image_net_directory, batch_size, nb_frame, type, synset_wnet2id, da
     image_paths = []
     label_paths = []
     indexes = []
-    
+
     wrg,hrg = 0,0
 
     regexp = "ILSVRC2015_"+ type +"_([0-9]*)"
     count_dir = 0
     for dir in batch:
         if type == 'train' and data_augmentation:
-            wrg,hrg = np.random.normal(0,0.1),np.random.normal(0,0.1),
-        
+            wrg,hrg = np.random.normal(0,0.1),np.random.normal(0,0.1)
+
         snippet_id = re.match(regexp,dir).group(1)
 
         ind = 0
