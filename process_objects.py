@@ -1,7 +1,7 @@
 import re, math, numpy as np
 from parameters import *
 
-def process_objects(width, height, objects, synset_wnet2id):
+def process_objects(width, height, objects, wrg, hrg, synset_wnet2id):
     # y : (S * S * (x,y,w,h,p1...p30,obj))
     y = np.zeros((S,S,4 + num_categories + 1))
     boxes = []
@@ -16,11 +16,16 @@ def process_objects(width, height, objects, synset_wnet2id):
 
     for obj in objects:
         trackid, name, xmax, xmin, ymax, ymin, occluded, generated = obj
-        x_center = (xmax + xmin) / 2
-        y_center = (ymax + ymin) / 2
+        xmax = min(max(int(xmax - hrg * width), 0), width)
+        xmin = min(max(int(xmin - hrg * width), 0), width)
+        ymax = min(max(int(ymax - wrg * height), 0), height)
+        ymin = min(max(int(ymin - wrg * height), 0), height)
+        
+        x_center = min((xmax + xmin) / 2, width)
+        y_center = min((ymax + ymin) / 2, height)
 
-        xbox = x_center / x_unit
-        ybox = y_center / y_unit
+        xbox = min(x_center / x_unit, S-1)
+        ybox = min(y_center / y_unit, S-1)
 
         if(boxes[xbox][ybox] == False): # Just one object per cell
             idbox = int(synset_wnet2id[name]) - 1
